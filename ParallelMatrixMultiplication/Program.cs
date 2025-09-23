@@ -2,7 +2,6 @@
 // Copyright (c) Larionov Artem. All rights reserved.
 // </copyright>
 
-using ParallelMartixMultiplication;
 using ParallelMatrixMultiplication;
 using System.Diagnostics;
 
@@ -11,6 +10,7 @@ Console.WriteLine(
     "Enter a number for further action:\n" +
     "1. Multiply matrices from files\n" +
     "2. Generate random matrices and save to files\n" +
+    "3. Run benchmark (compare sequential vs parallel)\n" +
     "0. Exit\n");
 Console.Write("Enter number: ");
 
@@ -90,6 +90,11 @@ try
             MatrixUserInterface.GenerateRandomMatrix(rowsB, colsB, -10, 10, "matrixB.txt");
 
             Console.WriteLine("Matrices generated and saved to matrixA.txt and matrixB.txt");
+            break;
+
+        case "3":
+            Console.WriteLine("\nRunning benchmark...");
+            BenchmarkRunner.Run();
             break;
 
         case "0":

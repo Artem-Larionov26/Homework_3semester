@@ -5,7 +5,7 @@
 using System;
 using System.Threading;
 
-namespace ParallelMartixMultiplication
+namespace ParallelMatrixMultiplication
 {
     /// <summary>
     /// A class for performing sequential matrix multiplication.
