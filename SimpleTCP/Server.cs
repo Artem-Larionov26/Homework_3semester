@@ -3,12 +3,13 @@
 // </copyright>
 
 using System;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 
-namespace MyNetworkingProject
+namespace SimpleFTP
 {
     public class Server
     {
@@ -54,20 +55,99 @@ namespace MyNetworkingProject
             try
             {
                 using var stream = client.GetStream();
-                byte[] buffer = new byte[1024];
-                int bytesRead = stream.Read(buffer, 0, buffer.Length);
+                using var reader = new StreamReader(stream, Encoding.UTF8);
+                using var writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
 
-                string message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                Console.WriteLine($"Message from the client: {message}");
+                string? request = reader.ReadLine();
+                if (string.IsNullOrEmpty(request))
+                {
+                    return;
+                }
+
+                Console.WriteLine($"Request from the client: {request}");
+
+                string[] parts = request.Split(' ', 2);
+                if (parts.Length < 2)
+                {
+                    writer.WriteLine("-1");
+                    writer.Flush();
+                    return;
+                }
+
+                string command = parts[0];
+                string path = parts[1];
+
+                if (command == "1")
+                {
+                    ProcessListCommand(path, writer);
+                }
+                else if (command == "2")
+                {
+                    ProcessGetCommand(path, writer);
+                }
+                else
+                {
+                    writer.WriteLine("-1");
+                    writer.Flush();
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error in client processing: {ex.Message}");
+                Console.WriteLine($"Client error: {ex.Message}");
             }
             finally
             {
                 client.Close();
             }
+        }
+
+        private void ProcessListCommand(string path, StreamWriter writer)
+        {
+            if (!Directory.Exists(path))
+            {
+                writer.WriteLine("-1");
+                writer.Flush();
+                Console.WriteLine($"The directory '{path}' does not exist.");
+                return;
+            }
+
+            var entries = Directory.GetFileSystemEntries(path);
+            var sb = new StringBuilder();
+            sb.Append(entries.Length);
+
+            foreach (var entry in entries)
+            {
+                string name = Path.GetFileName(entry);
+                bool isDir = Directory.Exists(entry);
+                sb.Append($" {name} {isDir.ToString().ToLower()}");
+            }
+
+            sb.Append('\n');
+            writer.Write(Encoding.UTF8.GetBytes(sb.ToString()));
+            writer.Flush();
+            Console.WriteLine($"A list has been sent for '{path}'");
+        }
+
+        private void ProcessGetCommand(string path, BinaryWriter writer)
+        {
+            if (!File.Exists(path))
+            {
+                writer.Write(Encoding.UTF8.GetBytes("-1\n"));
+                writer.Flush();
+                Console.WriteLine($"The file '{path}' does not exist.");
+                return;
+            }
+
+            byte[] content = File.ReadAllBytes(path);
+            long size = content.Length;
+
+            writer.Write(Encoding.UTF8.GetBytes($"{size} "));
+            writer.Flush();
+
+            writer.Write(content);
+            writer.Flush();
+
+            Console.WriteLine($"The file '{path}' has been sent ({size} bytes).");
         }
     }
 }

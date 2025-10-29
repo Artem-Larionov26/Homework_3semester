@@ -2,27 +2,19 @@
 // Copyright (c) Larionov Artem. All rights reserved.
 // </copyright>
 
-using System;
-using System.Threading;
+using SimpleFTP;
 
-namespace MyNetworkingProject
-{
-    class Program
-    {
-        static void Main(string[] args)
-        {
-            int port = 5000;
 
-            var server = new Server(port);
-            server.Start();
+int port = 5000;
 
-            Thread.Sleep(1000);
+var server = new Server(port);
+server.Start();
 
-            var client = new Client("127.0.0.1", port);
-            client.SendMessage("Hello, server!");
+Thread.Sleep(1000);
 
-            Console.WriteLine("Press Enter to finish...");
-            Console.ReadLine();
-        }
-    }
-}
+var client = new Client("127.0.0.1", port);
+client.SendCommand("1 ./");
+client.SendCommand("2 ./test.txt");
+
+Console.WriteLine("Press Enter to finish...");
+Console.ReadLine();
