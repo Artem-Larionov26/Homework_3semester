@@ -9,12 +9,12 @@ using DirectoryChecksum.Utilities;
 namespace DirectoryChecksum.Core
 {
     /// <summary>
-    /// Calculates checksums of file system directories
+    /// Computes checksums for file system directories
     /// </summary>
     public class DirectoryHasher
     {
         /// <summary>
-        /// Calculates an MD5 hash for an array of bytes
+        /// Computes MD5 hash for a byte array
         /// </summary>
         private byte[] ComputeMD5(byte[] data)
         {
@@ -27,26 +27,37 @@ namespace DirectoryChecksum.Core
         /// </summary>
         public byte[] CalculateFileHash(string filePath)
         {
+            // Check if file exists
             if (!File.Exists(filePath))
             {
-                throw new FileNotFoundException($"Файл не найден: {filePath}");
+                throw new FileNotFoundException($"File not found: {filePath}");
             }
 
-            var fileNameBytes = Encoding.UTF8.GetBytes(Path.GetFileName(filePath));
-            var fileContentBytes = File.ReadAllBytes(filePath);
+            try
+            {
+                var fileNameBytes = Encoding.UTF8.GetBytes(Path.GetFileName(filePath));
+                var fileContentBytes = File.ReadAllBytes(filePath);
 
-            return ComputeMD5(fileNameBytes.Concatenate(fileContentBytes));
+                var dataToHash = fileNameBytes.Concatenate(fileContentBytes);
+                return ComputeMD5(dataToHash);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                throw new UnauthorizedAccessException($"Access denied to file: {filePath}", ex);
+            }
+            catch (IOException ex)
+            {
+                throw new IOException($"Error reading file: {filePath}", ex);
+            }
         }
 
         /// <summary>
-        /// Single-threaded calculation of the directory checksum
+        /// Single-threaded directory checksum calculation
         /// </summary>
         public byte[] CalculateDirectoryHashSingleThreaded(string directoryPath)
         {
             if (!Directory.Exists(directoryPath))
-            {
-                throw new DirectoryNotFoundException($"Директория не найдена: {directoryPath}");
-            }
+                throw new DirectoryNotFoundException($"Directory not found: {directoryPath}");
 
             var directoryName = Path.GetFileName(directoryPath.TrimEnd(Path.DirectorySeparatorChar));
             var directoryNameBytes = Encoding.UTF8.GetBytes(directoryName);
@@ -131,63 +142,6 @@ namespace DirectoryChecksum.Core
         }
 
         /// <summary>
-        /// Gets a sorted list of files and subdirectories
-        /// </summary>
-        private string[] GetSortedEntries(string directoryPath)
-        {
-            var files = Directory.GetFiles(directoryPath);
-            var directories = Directory.GetDirectories(directoryPath);
-
-            return files.Concat(directories)
-                       .OrderBy(path => path, StringComparer.Ordinal)
-                       .ToArray();
-        }
-
-        /// <summary>
-        /// Concatenates multiple byte arrays (helper method)
-        /// </summary>
-        private byte[] ConcatenateArrays(params byte[][] arrays)
-        {
-            if (arrays.Length == 0)
-            {
-
-            }
-
-            if (arrays.Length == 1)
-            {
-                return arrays[0];
-            }
-
-            var totalLength = arrays.Sum(a => a.Length);
-            var result = new byte[totalLength];
-            var offset = 0;
-
-            foreach (var array in arrays)
-            {
-                Buffer.BlockCopy(array, 0, result, offset, array.Length);
-                offset += array.Length;
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// Converts a byte array into a readable hex string
-        /// </summary>
-        public string HashToHexString(byte[] hash)
-        {
-            return hash.ToHexString();
-        }
-
-        /// <summary>
-        /// Compares two hashes for equality
-        /// </summary>
-        public bool CompareHashes(byte[] hash1, byte[] hash2)
-        {
-            return hash1.SequenceEqual(hash2);
-        }
-
-        /// <summary>
         /// Asynchronous file checksum calculation
         /// </summary>
         public async Task<byte[]> CalculateFileHashAsync(string filePath)
@@ -197,17 +151,34 @@ namespace DirectoryChecksum.Core
                 throw new FileNotFoundException($"File not found: {filePath}");
             }
 
-            var fileNameBytes = Encoding.UTF8.GetBytes(Path.GetFileName(filePath));
-
-            byte[] fileContentBytes;
-            using (var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous))
+            try
             {
-                fileContentBytes = new byte[fileStream.Length];
-                await fileStream.ReadAsync(fileContentBytes, 0, (int)fileStream.Length);
-            }
+                var fileNameBytes = Encoding.UTF8.GetBytes(Path.GetFileName(filePath));
+                byte[] fileContentBytes;
 
-            var dataToHash = fileNameBytes.Concatenate(fileContentBytes);
-            return ComputeMD5(dataToHash);
+                using (var fileStream = new FileStream(
+                    filePath,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read,
+                    bufferSize: 4096,
+                    useAsync: true))
+                {
+                    fileContentBytes = new byte[fileStream.Length];
+                    await fileStream.ReadAsync(fileContentBytes, 0, (int)fileStream.Length);
+                }
+
+                var dataToHash = fileNameBytes.Concatenate(fileContentBytes);
+                return ComputeMD5(dataToHash);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                throw new UnauthorizedAccessException($"Access denied to file: {filePath}", ex);
+            }
+            catch (IOException ex)
+            {
+                throw new IOException($"Error reading file: {filePath}", ex);
+            }
         }
 
         /// <summary>
@@ -216,7 +187,9 @@ namespace DirectoryChecksum.Core
         public async Task<byte[]> CalculateDirectoryHashAsync(string directoryPath)
         {
             if (!Directory.Exists(directoryPath))
+            {
                 throw new DirectoryNotFoundException($"Directory not found: {directoryPath}");
+            }
 
             var directoryName = Path.GetFileName(directoryPath.TrimEnd(Path.DirectorySeparatorChar));
             var directoryNameBytes = Encoding.UTF8.GetBytes(directoryName);
@@ -261,7 +234,7 @@ namespace DirectoryChecksum.Core
             if (!Directory.Exists(directoryPath))
             {
                 throw new DirectoryNotFoundException($"Directory not found: {directoryPath}");
-            }    
+            }
 
             var directoryName = Path.GetFileName(directoryPath.TrimEnd(Path.DirectorySeparatorChar));
             var directoryNameBytes = Encoding.UTF8.GetBytes(directoryName);
@@ -289,7 +262,13 @@ namespace DirectoryChecksum.Core
                         var fileNameBytes = Encoding.UTF8.GetBytes(Path.GetFileName(entry));
                         byte[] fileContentBytes;
 
-                        using (var fileStream = new FileStream(entry, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous))
+                        using (var fileStream = new FileStream(
+                            entry,
+                            FileMode.Open,
+                            FileAccess.Read,
+                            FileShare.Read,
+                            bufferSize: 4096,
+                            useAsync: true))
                         {
                             fileContentBytes = new byte[fileStream.Length];
                             await fileStream.ReadAsync(fileContentBytes, 0, (int)fileStream.Length);
@@ -309,6 +288,74 @@ namespace DirectoryChecksum.Core
             dataToHash.AddRange(allHashes);
 
             return ComputeMD5(ConcatenateArrays(dataToHash.ToArray()));
+        }
+
+        /// <summary>
+        /// Gets sorted list of files and subdirectories
+        /// </summary>
+        private string[] GetSortedEntries(string directoryPath)
+        {
+            try
+            {
+                var files = Directory.GetFiles(directoryPath);
+                var directories = Directory.GetDirectories(directoryPath);
+
+                return files.Concat(directories)
+                           .OrderBy(path => path, StringComparer.Ordinal)
+                           .ToArray();
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                throw new UnauthorizedAccessException($"Access denied to directory: {directoryPath}", ex);
+            }
+            catch (IOException ex)
+            {
+                throw new IOException($"Error accessing directory: {directoryPath}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Concatenates multiple byte arrays (helper method)
+        /// </summary>
+        private byte[] ConcatenateArrays(params byte[][] arrays)
+        {
+            if (arrays.Length == 0)
+            {
+                return Array.Empty<byte>();
+            }
+
+            if (arrays.Length == 1)
+            {
+                return arrays[0];
+            }
+
+            var totalLength = arrays.Sum(a => a.Length);
+            var result = new byte[totalLength];
+            var offset = 0;
+
+            foreach (var array in arrays)
+            {
+                Buffer.BlockCopy(array, 0, result, offset, array.Length);
+                offset += array.Length;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Converts byte array to readable hex string
+        /// </summary>
+        public string HashToHexString(byte[] hash)
+        {
+            return hash.ToHexString();
+        }
+
+        /// <summary>
+        /// Compares two hashes for equality
+        /// </summary>
+        public bool CompareHashes(byte[] hash1, byte[] hash2)
+        {
+            return hash1.SequenceEqual(hash2);
         }
     }
 }

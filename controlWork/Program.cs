@@ -36,7 +36,10 @@ namespace DirectoryChecksum
             catch (Exception ex)
             {
                 Console.WriteLine($"Error: {ex.Message}");
-                Console.WriteLine($"Details: {ex}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
+                }
             }
 
             Console.WriteLine("\nPress any key to exit...");

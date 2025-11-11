@@ -18,13 +18,10 @@ namespace DirectoryChecksum.Tests
         [SetUp]
         public void SetUp()
         {
-            _testDirectory = Path.Combine(Path.GetTempPath(), "DirectoryChecksumTest");
+            _testDirectory = Path.Combine(Path.GetTempPath(), "DirectoryChecksumTest_" + Path.GetRandomFileName());
             _hasher = new DirectoryHasher();
 
-            if (Directory.Exists(_testDirectory))
-            {
-                Directory.Delete(_testDirectory, true);
-            }
+            SafeDeleteDirectory(_testDirectory);
 
             Directory.CreateDirectory(_testDirectory);
 
@@ -44,9 +41,32 @@ namespace DirectoryChecksum.Tests
         [TearDown]
         public void TearDown()
         {
-            if (Directory.Exists(_testDirectory))
+            SafeDeleteDirectory(_testDirectory);
+        }
+
+        /// <summary>
+        /// Safely delete directory with retry logic for cross-platform compatibility
+        /// </summary>
+        private void SafeDeleteDirectory(string directoryPath)
+        {
+            if (!Directory.Exists(directoryPath))
+                return;
+
+            for (int i = 0; i < 3; i++)
             {
-                Directory.Delete(_testDirectory, true);
+                try
+                {
+                    Directory.Delete(directoryPath, true);
+                    break;
+                }
+                catch (IOException) when (i < 2)
+                {
+                    System.Threading.Thread.Sleep(100);
+                }
+                catch (UnauthorizedAccessException) when (i < 2)
+                {
+                    System.Threading.Thread.Sleep(100);
+                }
             }
         }
 
@@ -180,6 +200,19 @@ namespace DirectoryChecksum.Tests
 
             Assert.That(hash, Is.Not.Null);
             Assert.That(hash.Length, Is.EqualTo(16));
+        }
+
+        [Test]
+        public void AllHashMethods_ReturnSameHash()
+        {
+            var singleThreadedHash = _hasher.CalculateDirectoryHashSingleThreaded(_testDirectory);
+            var multiThreadedHash = _hasher.CalculateDirectoryHashMultiThreaded(_testDirectory);
+            var asyncHash = _hasher.CalculateDirectoryHashAsync(_testDirectory).Result;
+            var hybridHash = _hasher.CalculateDirectoryHashHybridAsync(_testDirectory).Result;
+
+            Assert.That(_hasher.CompareHashes(singleThreadedHash, multiThreadedHash), Is.True);
+            Assert.That(_hasher.CompareHashes(singleThreadedHash, asyncHash), Is.True);
+            Assert.That(_hasher.CompareHashes(singleThreadedHash, hybridHash), Is.True);
         }
     }
 }
