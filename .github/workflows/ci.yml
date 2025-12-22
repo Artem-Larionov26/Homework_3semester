@@ -13,17 +13,34 @@ jobs:
         os: [ubuntu-latest, windows-latest]
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-    - uses: actions/setup-dotnet@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
 
-    - name: Build and Test all solutions
+    # -------- Linux --------
+    - name: Build and Test (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
       run: |
-        find . -name "*.sln" | while read sln; do
+        for sln in $(find . -name "*.sln"); do
           echo "Building $sln"
           dotnet restore "$sln"
           dotnet build "$sln" --no-restore
           dotnet test "$sln" --no-build
         done
+
+    # -------- Windows --------
+    - name: Build and Test (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        Get-ChildItem -Recurse -Filter *.sln | ForEach-Object {
+          Write-Host "Building $($_.FullName)"
+          dotnet restore $_.FullName
+          dotnet build $_.FullName --no-restore
+          dotnet test $_.FullName --no-build
+        }
