@@ -12,21 +12,32 @@ namespace SimpleFTP.Tests
     [TestFixture]
     public class ListTests
     {
+        private string tempDir;
         private Client client;
 
         [SetUp]
         public void Setup()
         {
-            client = new Client("127.0.0.1", TestServerFixture.Port);
+            tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            Directory.CreateDirectory(tempDir);
+
+            int port = TestServerHelper.GetFreePort();
+            TestServerHelper.StartServer(port);
+
+            client = new Client("127.0.0.1", port);
+        }
+
+        [TearDown]
+        public void Cleanup()
+        {
+            Directory.Delete(tempDir, true);
         }
 
         [Test]
         public void List_ExistingDirectory_ReturnsEntries()
         {
-            var entries = client.GetList("./");
-
+            var entries = client.GetList(tempDir);
             Assert.That(entries, Is.Not.Null);
-            Assert.That(entries.Length, Is.GreaterThanOrEqualTo(0));
         }
 
         [Test]
@@ -34,21 +45,19 @@ namespace SimpleFTP.Tests
         {
             Assert.Throws<DirectoryNotFoundException>(() =>
             {
-                client.GetList("./this_directory_does_not_exist");
+                client.GetList(Path.Combine(tempDir, "no_such_dir"));
             });
         }
 
         [Test]
         public void List_ContainsKnownFile()
         {
-            var testFile = "list_test.txt";
-            File.WriteAllText(testFile, "hello");
+            string filePath = Path.Combine(tempDir, "test.txt");
+            File.WriteAllText(filePath, "hello");
 
-            var entries = client.GetList("./");
+            var entries = client.GetList(tempDir);
 
-            Assert.That(entries.Any(e => e.Name == testFile && !e.IsDirectory));
-
-            File.Delete(testFile);
+            Assert.That(entries.Any(e => e.Name == "test.txt" && !e.IsDirectory));
         }
     }
 }
