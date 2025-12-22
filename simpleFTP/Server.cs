@@ -20,7 +20,7 @@ namespace SimpleFTP
     public class Server
     {
         private readonly int port;
-        private TcpListener listener;
+        private TcpListener? listener;
 
         public Server(int port)
         {
