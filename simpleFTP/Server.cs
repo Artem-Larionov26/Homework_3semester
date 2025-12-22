@@ -44,6 +44,11 @@ namespace SimpleFTP
         /// </summary>
         private void ListenForClients()
         {
+            if (listener == null)
+            {
+                throw new InvalidOperationException("Server has not been started.");
+            }
+
             while (true)
             {
                 TcpClient client = listener.AcceptTcpClient();
