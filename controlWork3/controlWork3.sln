@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36518.9 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "controlWork3", "controlWork3.csproj", "{D52FCD4E-0D22-457A-9C59-E53F33C40AB3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChatApp.Tests", "..\ChatApp.Tests\ChatApp.Tests.csproj", "{1CA2BACC-586B-4587-B201-D94655865351}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D52FCD4E-0D22-457A-9C59-E53F33C40AB3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D52FCD4E-0D22-457A-9C59-E53F33C40AB3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D52FCD4E-0D22-457A-9C59-E53F33C40AB3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D52FCD4E-0D22-457A-9C59-E53F33C40AB3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1CA2BACC-586B-4587-B201-D94655865351}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1CA2BACC-586B-4587-B201-D94655865351}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1CA2BACC-586B-4587-B201-D94655865351}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1CA2BACC-586B-4587-B201-D94655865351}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B26DB0EA-66E6-4C99-8AE6-028657FB997A}
+	EndGlobalSection
+EndGlobal
