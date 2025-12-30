@@ -17,16 +17,13 @@ namespace MyNUnit.Tests.Discovery
         [Test]
         public void Discover_FindsTestClasses()
         {
-            // Arrange
             var discoverer = new TestDiscoverer();
             var path = Path.GetDirectoryName(typeof(TestDiscovererTests).Assembly.Location)!;
 
-            // Act
             var result = discoverer.Discover(path);
 
-            // Assert
-            Assert.IsNotEmpty(result);
-            Assert.IsTrue(result.Any(tc => tc.Tests.Any()));
+            Assert.That(result, Is.Not.Empty);
+            Assert.That(result.Any(tc => tc.Tests.Any()), Is.True);
         }
     }
 }

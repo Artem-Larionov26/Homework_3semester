@@ -16,18 +16,26 @@ namespace Core.Discovery
     /// </summary>
     public class TestDiscoverer
     {
-        /// <summary>
-        /// Loads all assemblies from the specified path and discovers tests in them.
-        /// </summary>
         public IReadOnlyList<TestClassInfo> Discover(string path)
         {
             var result = new List<TestClassInfo>();
 
             foreach (var assembly in LoadAssemblies(path))
             {
-                foreach (var type in assembly.GetTypes())
+                Type[] types;
+
+                try
                 {
-                    var testClass = DiscoverTestClass(type);
+                    types = assembly.GetTypes();
+                }
+                catch (ReflectionTypeLoadException ex)
+                {
+                    types = ex.Types.Where(t => t != null).ToArray()!;
+                }
+
+                foreach (var type in types)
+                {
+                    var testClass = DiscoverTestClassSafe(type);
                     if (testClass != null)
                     {
                         result.Add(testClass);
@@ -39,9 +47,21 @@ namespace Core.Discovery
         }
 
         /// <summary>
-        /// Discovers test-related methods inside a single class.
-        /// Returns null if the class does not contain any tests.
+        /// Safe wrapper around DiscoverTestClass.
+        /// Prevents broken types from crashing discovery.
         /// </summary>
+        private TestClassInfo? DiscoverTestClassSafe(Type type)
+        {
+            try
+            {
+                return DiscoverTestClass(type);
+            }
+            catch (TypeLoadException)
+            {
+                return null;
+            }
+        }
+
         private TestClassInfo? DiscoverTestClass(Type type)
         {
             var methods = type.GetMethods(
@@ -54,28 +74,27 @@ namespace Core.Discovery
 
             foreach (var method in methods)
             {
-                var testAttribute = method.GetCustomAttribute<TestAttribute>();
-                if (testAttribute != null)
+                if (HasAttribute<TestAttribute>(method, out var testAttribute))
                 {
                     testClass.Tests.Add(new TestMethodInfo(method, testAttribute));
                 }
 
-                if (method.GetCustomAttribute<BeforeAttribute>() != null)
+                if (HasAttribute<BeforeAttribute>(method))
                 {
                     testClass.BeforeMethods.Add(method);
                 }
 
-                if (method.GetCustomAttribute<AfterAttribute>() != null)
+                if (HasAttribute<AfterAttribute>(method))
                 {
                     testClass.AfterMethods.Add(method);
                 }
 
-                if (method.GetCustomAttribute<BeforeClassAttribute>() != null)
+                if (HasAttribute<BeforeClassAttribute>(method))
                 {
                     testClass.BeforeClassMethods.Add(method);
                 }
 
-                if (method.GetCustomAttribute<AfterClassAttribute>() != null)
+                if (HasAttribute<AfterClassAttribute>(method))
                 {
                     testClass.AfterClassMethods.Add(method);
                 }
@@ -85,8 +104,38 @@ namespace Core.Discovery
         }
 
         /// <summary>
-        /// Loads all assemblies (*.dll) from the specified directory.
+        /// Safely checks whether a method has a specific attribute.
         /// </summary>
+        private static bool HasAttribute<T>(MethodInfo method) where T : Attribute
+        {
+            try
+            {
+                return method.GetCustomAttribute<T>() != null;
+            }
+            catch (TypeLoadException)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Safely retrieves an attribute instance if present.
+        /// </summary>
+        private static bool HasAttribute<T>(MethodInfo method, out T attribute)
+            where T : Attribute
+        {
+            try
+            {
+                attribute = method.GetCustomAttribute<T>()!;
+                return attribute != null;
+            }
+            catch (TypeLoadException)
+            {
+                attribute = null!;
+                return false;
+            }
+        }
+
         private static IEnumerable<Assembly> LoadAssemblies(string path)
         {
             foreach (var file in System.IO.Directory.EnumerateFiles(path, "*.dll"))

@@ -3,21 +3,23 @@
 // </copyright>
 
 using System.Linq;
+using Attributes;
+using Core.Discovery;
 using Core.Execution;
 using Core.Models;
-using Attributes;
 using NUnit.Framework;
+using TestAttribute = Attributes.TestAttribute;
 
 namespace MyNUnit.Tests.Execution
 {
     /// <summary>
-    /// Tests for test execution logic.
+    /// Unit tests for TestRunner execution logic.
     /// </summary>
     public class TestRunnerTests
     {
         private class PassingTestClass
         {
-            [Test]
+            [TestAttribute]
             public void PassingTest()
             {
             }
@@ -25,16 +27,16 @@ namespace MyNUnit.Tests.Execution
 
         private class FailingTestClass
         {
-            [Test]
+            [TestAttribute]
             public void FailingTest()
             {
-                throw new System.Exception();
+                throw new System.Exception("Failure");
             }
         }
 
         private class ExpectedExceptionTestClass
         {
-            [Test(Expected = typeof(System.InvalidOperationException))]
+            [TestAttribute(Expected = typeof(System.InvalidOperationException))]
             public void ExpectedExceptionTest()
             {
                 throw new System.InvalidOperationException();
@@ -43,10 +45,10 @@ namespace MyNUnit.Tests.Execution
 
         private class IgnoredTestClass
         {
-            [Test(Ignore = "Ignored for testing")]
+            [TestAttribute(Ignore = "Ignored for testing")]
             public void IgnoredTest()
             {
-                throw new System.Exception();
+                throw new System.Exception("Should not be executed");
             }
         }
 
@@ -58,7 +60,7 @@ namespace MyNUnit.Tests.Execution
 
             var result = runner.Run(new[] { testClass }).Single();
 
-            Assert.AreEqual(TestStatus.Passed, result.Status);
+            Assert.That(result.Status, Is.EqualTo(TestStatus.Passed));
         }
 
         [Test]
@@ -69,7 +71,7 @@ namespace MyNUnit.Tests.Execution
 
             var result = runner.Run(new[] { testClass }).Single();
 
-            Assert.AreEqual(TestStatus.Failed, result.Status);
+            Assert.That(result.Status, Is.EqualTo(TestStatus.Failed));
         }
 
         [Test]
@@ -80,7 +82,7 @@ namespace MyNUnit.Tests.Execution
 
             var result = runner.Run(new[] { testClass }).Single();
 
-            Assert.AreEqual(TestStatus.Passed, result.Status);
+            Assert.That(result.Status, Is.EqualTo(TestStatus.Passed));
         }
 
         [Test]
@@ -91,12 +93,17 @@ namespace MyNUnit.Tests.Execution
 
             var result = runner.Run(new[] { testClass }).Single();
 
-            Assert.AreEqual(TestStatus.Ignored, result.Status);
+            Assert.That(result.Status, Is.EqualTo(TestStatus.Ignored));
         }
 
+        /// <summary>
+        /// Helper method that discovers TestClassInfo for a given type
+        /// using the real TestDiscoverer.
+        /// </summary>
         private static TestClassInfo CreateTestClassInfo(System.Type type)
         {
-            var discoverer = new Core.Discovery.TestDiscoverer();
+            var discoverer = new TestDiscoverer();
+
             return discoverer
                 .Discover(System.IO.Path.GetDirectoryName(type.Assembly.Location)!)
                 .Single(tc => tc.ClassType == type);
