@@ -14,7 +14,7 @@ Console.WriteLine(
     "0. Exit\n");
 Console.Write("Enter number: ");
 
-string? choice = Console.ReadLine();
+var choice = Console.ReadLine();
 
 try
 {
@@ -27,8 +27,8 @@ try
             Console.Write("Enter path to file with matrix B: ");
             string fileB = Console.ReadLine() ?? throw new ArgumentException("Path B is empty");
 
-            int[,] A = MatrixUserInterface.ReadMatrix(fileA);
-            int[,] B = MatrixUserInterface.ReadMatrix(fileB);
+            var A = MatrixUserInterface.ReadMatrix(fileA);
+            var B = MatrixUserInterface.ReadMatrix(fileB);
 
             Console.WriteLine("Matrix A:");
             MatrixMultiplication.PrintMatrix(A, "A");
