@@ -4,161 +4,133 @@
 
 using System;
 using System.IO;
+using System.Threading;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
-using System.Threading;
 
-namespace SimpleFTP
+namespace SimpleFTP;
+
+/// <summary>
+/// Asynchronous FTP-like server supporting LIST and GET commands.
+/// </summary>
+public sealed class Server(IPAddress address, int port) : IDisposable
 {
+    private readonly TcpListener listener = new(address, port);
+    private readonly CancellationTokenSource cts = new();
+
     /// <summary>
-    /// Simple FTP-like server that supports two commands:
-    /// 1 - list directory contents
-    /// 2 - download file
-    /// Communication is performed over TCP using a custom binary protocol.
+    /// Starts the server asynchronously.
     /// </summary>
-    public class Server
+    public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        private readonly int port;
-        private TcpListener? listener;
+        listener.Start();
 
-        public Server(int port)
+        using var linkedCts =
+            CancellationTokenSource.CreateLinkedTokenSource(cts.Token, cancellationToken);
+
+        try
         {
-            this.port = port;
-        }
-
-        public void Start()
-        {
-            listener = new TcpListener(IPAddress.Loopback, port);
-            listener.Start();
-
-            Console.WriteLine($"Server started on port {port}");
-
-            var serverThread = new Thread(ListenForClients);
-            serverThread.Start();
-        }
-
-        /// <summary>
-        /// Continuously accepts incoming TCP connections.
-        /// Each client is processed in a separate thread.
-        /// </summary>
-        private void ListenForClients()
-        {
-            if (listener == null)
+            while (!linkedCts.Token.IsCancellationRequested)
             {
-                throw new InvalidOperationException("Server has not been started.");
-            }
+                TcpClient client = await listener.AcceptTcpClientAsync(linkedCts.Token);
 
-            while (true)
-            {
-                TcpClient client = listener.AcceptTcpClient();
-                Console.WriteLine("Client connected");
-
-                var clientThread = new Thread(() => HandleClient(client));
-                clientThread.Start();
+                _ = HandleClientAsync(client, linkedCts.Token);
             }
         }
-
-        private void HandleClient(TcpClient client)
+        catch (OperationCanceledException)
         {
-            try
-            {
-                using var stream = client.GetStream();
-                using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
-                using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
+            // Normal shutdown
+        }
+    }
 
-                string? request = reader.ReadLine();
-                if (string.IsNullOrEmpty(request))
-                {
-                    return;
-                }
+    private static async Task HandleClientAsync(
+        TcpClient client,
+        CancellationToken cancellationToken)
+    {
+        using var _ = client;
+        await using var stream = client.GetStream();
 
-                Console.WriteLine($"Request: {request}");
+        using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
+        using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
 
-                string[] parts = request.Split(' ', 2);
-                if (parts.Length != 2)
-                {
-                    writer.Write(-1L);
-                    return;
-                }
-
-                string command = parts[0];
-                string path = parts[1];
-
-                switch (command)
-                {
-                    case "1":
-                        ProcessListCommand(path, writer);
-                        break;
-
-                    case "2":
-                        ProcessGetCommand(path, writer);
-                        break;
-
-                    default:
-                        writer.Write(-1L);
-                        break;
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Client error: {ex.Message}");
-            }
-            finally
-            {
-                client.Close();
-            }
+        string? request = await reader.ReadLineAsync();
+        if (string.IsNullOrWhiteSpace(request))
+        {
+            return;
         }
 
-        /// <summary>
-        /// Sends directory listing to the client.
-        /// Protocol:
-        /// Int64 count
-        /// (string name, bool isDirectory) * count
-        /// </summary>
-        private void ProcessListCommand(string path, BinaryWriter writer)
+        string[] parts = request.Split(' ', 2);
+        if (parts.Length != 2)
         {
-            if (!Directory.Exists(path))
-            {
+            writer.Write(-1L);
+            return;
+        }
+
+        string command = parts[0];
+        string path = parts[1];
+
+        switch (command)
+        {
+            case "1":
+                ProcessList(path, writer);
+                break;
+
+            case "2":
+                await ProcessGetAsync(path, writer, stream, cancellationToken);
+                break;
+
+            default:
                 writer.Write(-1L);
-                return;
-            }
-
-            var entries = Directory.GetFileSystemEntries(path);
-            writer.Write((long)entries.Length);
-
-            foreach (var entry in entries)
-            {
-                string name = Path.GetFileName(entry);
-                bool isDir = Directory.Exists(entry);
-
-                writer.Write(name);
-                writer.Write(isDir);
-            }
-
-            Console.WriteLine($"List sent for {path}");
+                break;
         }
+    }
 
-        /// <summary>
-        /// Sends file content to the client.
-        /// Protocol:
-        /// Int64 size
-        /// byte[size] content
-        /// </summary>
-
-        private void ProcessGetCommand(string path, BinaryWriter writer)
+    private static void ProcessList(string path, BinaryWriter writer)
+    {
+        if (!Directory.Exists(path))
         {
-            if (!File.Exists(path))
-            {
-                writer.Write(-1L);
-                return;
-            }
-
-            byte[] content = File.ReadAllBytes(path);
-            writer.Write((long)content.Length);
-            writer.Write(content);
-
-            Console.WriteLine($"File sent: {path} ({content.Length} bytes)");
+            writer.Write(-1L);
+            return;
         }
+
+        var entries = Directory.GetFileSystemEntries(path);
+        writer.Write((long)entries.Length);
+
+        foreach (var entry in entries)
+        {
+            writer.Write(Path.GetFileName(entry));
+            writer.Write(Directory.Exists(entry));
+        }
+    }
+
+    private static async Task ProcessGetAsync(
+        string path,
+        BinaryWriter writer,
+        NetworkStream stream,
+        CancellationToken cancellationToken)
+    {
+        if (!File.Exists(path))
+        {
+            writer.Write(-1L);
+            return;
+        }
+
+        var fileInfo = new FileInfo(path);
+        writer.Write(fileInfo.Length);
+
+        await using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+        await file.CopyToAsync(stream, cancellationToken);
+    }
+
+    /// <summary>
+    /// Stops the server.
+    /// </summary>
+    public void Dispose()
+    {
+        cts.Cancel();
+        listener.Stop();
+        cts.Dispose();
     }
 }

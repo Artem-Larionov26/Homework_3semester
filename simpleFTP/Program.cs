@@ -2,20 +2,25 @@
 // Copyright (c) Larionov Artem. All rights reserved.
 // </copyright>
 
-using System.Threading;
+using System.Net;
 using SimpleFTP;
 
-int port = 5000;
+using var cts = new CancellationTokenSource();
 
-var server = new Server(port);
-server.Start();
+Console.CancelKeyPress += (_, e) =>
+{
+    e.Cancel = true;
+    cts.Cancel();
+};
 
-Thread.Sleep(500);
+var address = IPAddress.Loopback;
+var port = args.Length > 0 && int.TryParse(args[0], out var p) ? p : 5000;
 
-var client = new Client("127.0.0.1", port);
+using var server = new Server(address, port);
 
-client.SendList("./");
-client.SendGet("./test.txt");
+Console.WriteLine($"Server started on {address}:{port}");
+Console.WriteLine("Press Ctrl+C to stop.");
 
-Console.WriteLine("Press Enter to exit...");
-Console.ReadLine();
+await server.StartAsync(cts.Token);
+
+Console.WriteLine("Server stopped.");
