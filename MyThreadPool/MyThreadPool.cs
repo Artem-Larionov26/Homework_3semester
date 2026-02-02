@@ -1,39 +1,35 @@
-﻿// <copyright file="MyThreadPool.cs" company="Kalinin Andrew">
-// Copyright (c) Kalinin Andrew. All rights reserved.
+﻿// <copyright file="MyThreadPool.cs" company="Larionov Artem">
+// Copyright (c) Larionov Artem. All rights reserved.
 // </copyright>
 
 using System;
 using System.Collections.Generic;
 using System.Threading;
 
+namespace MyThreadPool;
+
 /// <summary>
-/// A simple task pool with a fixed number of threads.
+/// A simple fixed-size thread pool for executing tasks.
 /// </summary>
-public class MyThreadPool : IDisposable
+public sealed class MyThreadPool : IDisposable
 {
     private readonly Thread[] workers;
+    private readonly Queue<Action> taskQueue = new();
+    private readonly object locker = new();
 
-    private readonly Queue<Action> taskQueue = new Queue<Action>();
-
-    private readonly object locker = new object();
-
-    private volatile bool isShutdownInitiated = false;
-
-    private bool AcceptingTasks => !isShutdownInitiated;
+    private volatile bool isShutdownInitiated;
 
     /// <summary>
-    /// Creates and starts n worker threads.
+    /// Initializes the thread pool and starts worker threads.
     /// </summary>
-    /// <param name="workerCount">The number of work streams should be >= 1</param>
+    /// <param name="workerCount">Number of worker threads.</param>
     public MyThreadPool(int workerCount)
     {
-        if (workerCount <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(workerCount));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(workerCount);
+
         workers = new Thread[workerCount];
 
-        for (int i = 0; i < workerCount; i++)
+        for (var i = 0; i < workerCount; i++)
         {
             workers[i] = new Thread(WorkerLoop)
             {
@@ -45,53 +41,43 @@ public class MyThreadPool : IDisposable
     }
 
     /// <summary>
-    /// Sends a function for execution, returns an object IMyTask<TResult>.
-    /// If Shutdown has already been initiated, it throws InvalidOperationException (we do not accept new tasks).
+    /// Submits a task for execution.
     /// </summary>
+    /// <typeparam name="TResult">Task result type.</typeparam>
+    /// <param name="function">Function to execute.</param>
+    /// <returns>An object representing the submitted task.</returns>
     public IMyTask<TResult> Submit<TResult>(Func<TResult> function)
     {
-        if (function == null)
-        {
-            throw new ArgumentNullException(nameof(function));
-        }
+        ArgumentNullException.ThrowIfNull(function);
 
         lock (locker)
         {
-            if (!isShutdownInitiated)
+            if (isShutdownInitiated)
             {
-                var task = new MyTask<TResult>(this, function);
-                EnqueueInternal(task.RunAsRoot);
-                return task;
+                throw new InvalidOperationException("ThreadPool is shutting down.");
             }
-            else
-            {
-                throw new InvalidOperationException("ThreadPool is shutting down — cannot accept new tasks.");
-            }
+
+            var task = new MyTask<TResult>(this, function);
+            Enqueue(task.Execute);
+            return task;
         }
     }
 
-    /// <summary>
-    /// An internal method for placing an Action in a shared queue and waking up waiting threads.
-    /// Thread-safe (called from outside the locker or inside).
-    /// </summary>
-    private void EnqueueInternal(Action work)
+    private void Enqueue(Action action)
     {
         lock (locker)
         {
-            taskQueue.Enqueue(work);
+            taskQueue.Enqueue(action);
             Monitor.Pulse(locker);
         }
     }
 
-    /// <summary>
-    /// The work cycle of each thread: retrieves tasks from the queue and executes them.
-    /// Ends when Shutdown is initiated and the queue is empty.
-    /// </summary>
     private void WorkerLoop()
     {
         while (true)
         {
-            Action work = null;
+            Action work;
+
             lock (locker)
             {
                 while (taskQueue.Count == 0 && !isShutdownInitiated)
@@ -104,25 +90,22 @@ public class MyThreadPool : IDisposable
                     return;
                 }
 
-                if (taskQueue.Count > 0)
-                    work = taskQueue.Dequeue();
+                work = taskQueue.Dequeue();
             }
 
             try
             {
-                work?.Invoke();
+                work();
             }
             catch
             {
+                // Exceptions are handled inside tasks
             }
         }
     }
 
     /// <summary>
-    /// Pool shutdown — collaborative shutdown.
-    /// - We forbid accepting new Submissions.
-    /// - We wait until the queue is empty and all worker threads finish executing current tasks.
-    /// Shutdown blocks the calling thread until it is fully completed.
+    /// Initiates cooperative shutdown and waits for all workers to stop.
     /// </summary>
     public void Shutdown()
     {
@@ -132,280 +115,142 @@ public class MyThreadPool : IDisposable
             Monitor.PulseAll(locker);
         }
 
-        foreach (var t in workers)
+        foreach (var worker in workers)
         {
-            if (t == null)
-            {
-                continue;
-            }
-            try
-            {
-                t.Join();
-            }
-            catch (ThreadStateException)
-            {
-            }
+            worker.Join();
         }
     }
 
-    /// <summary>
-    /// Dispose calls Shutdown for ease of use in using.
-    /// </summary>
-    public void Dispose()
+    public void Dispose() => Shutdown();
+
+    private sealed class MyTask<TResult> : IMyTask<TResult>
     {
-        Shutdown();
-    }
+        private readonly MyThreadPool pool;
+        private Func<TResult>? function;
 
-    #region Вложенная реализация IMyTask<TResult> и MyTask<TResult>
+        private TResult? result;
+        private Exception? exception;
+        private volatile bool isCompleted;
 
-    /// <summary>
-    /// The task interface that MyTask should implement.
-    /// Here it is defined in a file for self—sufficiency - you can put it in IMyTask.cs.
-    /// </summary>
-    public interface IMyTask<TResult>
-    {
-        bool IsCompleted { get; }
-        TResult Result { get; }
-        IMyTask<TNewResult> ContinueWith<TNewResult>(Func<TResult, TNewResult> continuation);
-    }
+        private readonly ManualResetEventSlim completionEvent = new(false);
+        private readonly List<Action> continuations = new();
+        private readonly Lock sync = new();
 
-    /// <summary>
-    /// Implementation of IMyTask<TResult>.
-    /// </summary>
-    private class MyTask<TResult> : IMyTask<TResult>
-    {
-        private readonly MyThreadPool _pool;
-
-        private readonly Func<TResult> _function;
-
-        private volatile bool isCompleted = false;
-
-        private TResult result;
-
-        private Exception exception;
-
-        private readonly ManualResetEventSlim completedEvent = new ManualResetEventSlim(false);
-
-        private readonly List<Action<TResult>> pendingContinuations = new List<Action<TResult>>();
-
-        private readonly object _sync = new object();
-
-        /// <summary>
-        /// Creates a task linked to the pool. 
-        /// </summary>
         public MyTask(MyThreadPool pool, Func<TResult> function)
         {
-            _pool = pool ?? throw new ArgumentNullException(nameof(pool));
-            _function = function;
+            this.pool = pool;
+            this.function = function;
         }
 
         public bool IsCompleted => isCompleted;
 
-        /// <summary>
-        /// Blocks the calling thread if the task has not completed yet.
-        /// If the calculation is completed with an exception, it throws an AggregateException.
-        /// </summary>
         public TResult Result
         {
             get
             {
-                if (!isCompleted)
-                {
-                    completedEvent.Wait();
-                }
+                completionEvent.Wait();
 
                 if (exception != null)
                 {
                     throw new AggregateException(exception);
                 }
 
-                return result;
+                return result!;
             }
         }
 
-        /// <summary>
-        /// Submit calls this method — it runs the root function in the workflow.
-        /// </summary>
-        public void RunAsRoot()
+        public void Execute()
         {
             try
             {
-                TResult r = _function();
+                var r = function!();
                 CompleteSuccessfully(r);
             }
             catch (Exception ex)
             {
                 CompleteExceptionally(ex);
             }
+            finally
+            {
+                function = null;
+            }
         }
 
-        /// <summary>
-        /// Completes the task successfully and initiates the execution/delivery of all registered continuations.
-        /// </summary>
-        private void CompleteSuccessfully(TResult r)
+        private void CompleteSuccessfully(TResult value)
         {
-            List<Action<TResult>> continuationsCopy = null;
+            List<Action> toRun;
 
-            lock (_sync)
+            lock (sync)
             {
-                if (isCompleted)
-                {
-                    return;
-                }
-
-                result = r;
+                result = value;
                 isCompleted = true;
-                completedEvent.Set();
-
-                if (pendingContinuations.Count > 0)
-                {
-                    continuationsCopy = new List<Action<TResult>>(pendingContinuations);
-                    pendingContinuations.Clear();
-                }
+                toRun = new List<Action>(continuations);
+                continuations.Clear();
             }
 
-            if (continuationsCopy != null)
+            completionEvent.Set();
+
+            foreach (var cont in toRun)
             {
-                foreach (var cont in continuationsCopy)
-                {
-                    try
-                    {
-                        cont?.Invoke(r);
-                    }
-                    catch
-                    {
-                    }
-                }
+                pool.Enqueue(cont);
             }
         }
 
-        /// <summary>
-        /// Completes the task with an exception and tries to notify continuations in the same way.,
-        /// which, when encountering a shutdown/error, will receive an error.
-        /// </summary>
         private void CompleteExceptionally(Exception ex)
         {
-            List<Action<TResult>> continuationsCopy = null;
-
-            lock (_sync)
+            lock (sync)
             {
-                if (isCompleted)
-                {
-                    return;
-                }
                 exception = ex;
                 isCompleted = true;
-                completedEvent.Set();
-
-                if (pendingContinuations.Count > 0)
-                {
-                    continuationsCopy = new List<Action<TResult>>(pendingContinuations);
-                    pendingContinuations.Clear();
-                }
+                continuations.Clear();
             }
 
-            if (continuationsCopy != null)
-            {
-                foreach (var cont in continuationsCopy)
-                {
-                    try
-                    {
-                        cont?.Invoke(default(TResult));
-                    }
-                    catch
-                    {
-                    }
-                }
-            }
+            completionEvent.Set();
         }
 
-        /// <summary>
-        /// Registration of ContinueWith. It does not block.
-        /// Returns a new task (which will be completed in the pool).
-        /// </summary>
         public IMyTask<TNewResult> ContinueWith<TNewResult>(Func<TResult, TNewResult> continuation)
         {
-            if (continuation == null)
-            {
-                throw new ArgumentNullException(nameof(continuation));
-            }
+            ArgumentNullException.ThrowIfNull(continuation);
 
-            var continuationTask = new MyTask<TNewResult>(_pool, null);
-
-            Action<TResult> registration = (parentResult) =>
+            var nextTask = new MyTask<TNewResult>(pool, () =>
             {
-                lock (_pool.locker)
+                if (exception != null)
                 {
-                    if (_pool.AcceptingTasks)
-                    {
-                        _pool.EnqueueInternal(() =>
-                        {
-                            try
-                            {
-                                TResult val;
-                                Exception parentEx = null;
-                                try
-                                {
-                                }
-                                catch
-                                {
-                                }
+                    throw exception;
+                }
 
-                                TNewResult contRes = continuation(parentResult);
-                                continuationTask.SetResult(contRes);
-                            }
-                            catch (Exception ex)
-                            {
-                                continuationTask.SetException(ex);
-                            }
-                        });
+                return continuation(Result);
+            });
+
+            Action schedule = () =>
+            {
+                lock (pool.locker)
+                {
+                    if (pool.isShutdownInitiated)
+                    {
+                        nextTask.CompleteExceptionally(
+                            new InvalidOperationException("ThreadPool is shutting down."));
                     }
                     else
                     {
-                        continuationTask.SetException(new InvalidOperationException("ThreadPool is shutting down — continuation will not be executed."));
+                        pool.Enqueue(nextTask.Execute);
                     }
                 }
             };
 
-            bool callImmediately = false;
-            TResult parentResultSnapshot = default(TResult);
-
-            lock (_sync)
+            lock (sync)
             {
                 if (isCompleted)
                 {
-                    callImmediately = true;
-                    parentResultSnapshot = result;
+                    schedule();
                 }
                 else
                 {
-                    pendingContinuations.Add(registration);
+                    continuations.Add(schedule);
                 }
             }
 
-            if (callImmediately)
-            {
-                registration(parentResultSnapshot);
-            }
-
-            return continuationTask;
-        }
-
-        /// <summary>
-        /// Sets the successful result "manually" (using the continuation runner).
-        /// </summary>
-        private void SetResult(TResult r)
-        {
-            CompleteSuccessfully(r);
-        }
-
-        /// <summary>
-        /// Sets the exception "manually".
-        /// </summary>
-        private void SetException(Exception ex)
-        {
-            CompleteExceptionally(ex);
+            return nextTask;
         }
     }
-    #endregion
 }
