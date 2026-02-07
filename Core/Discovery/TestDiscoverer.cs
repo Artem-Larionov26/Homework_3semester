@@ -2,6 +2,8 @@
 // Copyright (c) Larionov Artem. All rights reserved.
 // </copyright>
 
+namespace Core.Discovery;
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,139 +11,139 @@ using System.Reflection;
 using Attributes;
 using Core.Models;
 
-namespace Core.Discovery
+/// <summary>
+/// Discovers test classes and test methods in assemblies using reflection.
+/// </summary>
+public class TestDiscoverer
 {
-    /// <summary>
-    /// Discovers test classes and test methods in assemblies using reflection.
-    /// </summary>
-    public class TestDiscoverer
+#pragma warning disable SA1600 // Elements should be documented
+    public IReadOnlyList<TestClassInfo> Discover(string path)
+#pragma warning restore SA1600 // Elements should be documented
     {
-        public IReadOnlyList<TestClassInfo> Discover(string path)
+        var result = new List<TestClassInfo>();
+
+        foreach (var assembly in LoadAssemblies(path))
         {
-            var result = new List<TestClassInfo>();
+            Type[] types;
 
-            foreach (var assembly in LoadAssemblies(path))
-            {
-                Type[] types;
-
-                try
-                {
-                    types = assembly.GetTypes();
-                }
-                catch (ReflectionTypeLoadException ex)
-                {
-                    types = ex.Types.Where(t => t != null).ToArray()!;
-                }
-
-                foreach (var type in types)
-                {
-                    var testClass = DiscoverTestClassSafe(type);
-                    if (testClass != null)
-                    {
-                        result.Add(testClass);
-                    }
-                }
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// Safe wrapper around DiscoverTestClass.
-        /// Prevents broken types from crashing discovery.
-        /// </summary>
-        private TestClassInfo? DiscoverTestClassSafe(Type type)
-        {
             try
             {
-                return DiscoverTestClass(type);
+                types = assembly.GetTypes();
             }
-            catch (TypeLoadException)
+            catch (ReflectionTypeLoadException ex)
             {
-                return null;
+                types = ex.Types.Where(t => t != null).ToArray()!;
+            }
+
+            foreach (var type in types)
+            {
+                var testClass = this.DiscoverTestClassSafe(type);
+                if (testClass != null)
+                {
+                    result.Add(testClass);
+                }
             }
         }
 
-        private TestClassInfo? DiscoverTestClass(Type type)
+        return result;
+    }
+
+    /// <summary>
+    /// Safe wrapper around DiscoverTestClass.
+    /// Prevents broken types from crashing discovery.
+    /// </summary>
+    private TestClassInfo? DiscoverTestClassSafe(Type type)
+    {
+        try
         {
-            var methods = type.GetMethods(
-                BindingFlags.Instance |
-                BindingFlags.Static |
-                BindingFlags.Public |
-                BindingFlags.NonPublic);
-
-            var testClass = new TestClassInfo(type);
-
-            foreach (var method in methods)
-            {
-                if (HasAttribute<TestAttribute>(method, out var testAttribute))
-                {
-                    testClass.Tests.Add(new TestMethodInfo(method, testAttribute));
-                }
-
-                if (HasAttribute<BeforeAttribute>(method))
-                {
-                    testClass.BeforeMethods.Add(method);
-                }
-
-                if (HasAttribute<AfterAttribute>(method))
-                {
-                    testClass.AfterMethods.Add(method);
-                }
-
-                if (HasAttribute<BeforeClassAttribute>(method))
-                {
-                    testClass.BeforeClassMethods.Add(method);
-                }
-
-                if (HasAttribute<AfterClassAttribute>(method))
-                {
-                    testClass.AfterClassMethods.Add(method);
-                }
-            }
-
-            return testClass.Tests.Any() ? testClass : null;
+            return this.DiscoverTestClass(type);
         }
-
-        /// <summary>
-        /// Safely checks whether a method has a specific attribute.
-        /// </summary>
-        private static bool HasAttribute<T>(MethodInfo method) where T : Attribute
+        catch (TypeLoadException)
         {
-            try
-            {
-                return method.GetCustomAttribute<T>() != null;
-            }
-            catch (TypeLoadException)
-            {
-                return false;
-            }
+            return null;
         }
+    }
 
-        /// <summary>
-        /// Safely retrieves an attribute instance if present.
-        /// </summary>
-        private static bool HasAttribute<T>(MethodInfo method, out T attribute)
-            where T : Attribute
+    private TestClassInfo? DiscoverTestClass(Type type)
+    {
+        var methods = type.GetMethods(
+            BindingFlags.Instance |
+            BindingFlags.Static |
+            BindingFlags.Public |
+            BindingFlags.NonPublic);
+
+        var testClass = new TestClassInfo(type);
+
+        foreach (var method in methods)
         {
-            try
+            if (HasAttribute<TestAttribute>(method, out var testAttribute))
             {
-                attribute = method.GetCustomAttribute<T>()!;
-                return attribute != null;
+                testClass.Tests.Add(new TestMethodInfo(method, testAttribute));
             }
-            catch (TypeLoadException)
+
+            if (HasAttribute<BeforeAttribute>(method))
             {
-                attribute = null!;
-                return false;
+                testClass.BeforeMethods.Add(method);
+            }
+
+            if (HasAttribute<AfterAttribute>(method))
+            {
+                testClass.AfterMethods.Add(method);
+            }
+
+            if (HasAttribute<BeforeClassAttribute>(method))
+            {
+                testClass.BeforeClassMethods.Add(method);
+            }
+
+            if (HasAttribute<AfterClassAttribute>(method))
+            {
+                testClass.AfterClassMethods.Add(method);
             }
         }
 
-        private static IEnumerable<Assembly> LoadAssemblies(string path)
+        return testClass.Tests.Any() ? testClass : null;
+    }
+
+    /// <summary>
+    /// Safely checks whether a method has a specific attribute.
+    /// </summary>
+    private static bool HasAttribute<T>(MethodInfo method)
+        where T : Attribute
+    {
+        try
         {
-            foreach (var file in System.IO.Directory.EnumerateFiles(path, "*.dll"))
-            {
-                yield return Assembly.LoadFrom(file);
-            }
+            return method.GetCustomAttribute<T>() != null;
+        }
+        catch (TypeLoadException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Safely retrieves an attribute instance if present.
+    /// </summary>
+    private static bool HasAttribute<T>(MethodInfo method, out T attribute)
+        where T : Attribute
+    {
+        try
+        {
+            attribute = method.GetCustomAttribute<T>()!;
+            return attribute != null;
+        }
+        catch (TypeLoadException)
+        {
+            attribute = null!;
+            return false;
+        }
+    }
+
+    private static IEnumerable<Assembly> LoadAssemblies(string path)
+    {
+        foreach (var file in System.IO.Directory.EnumerateFiles(path, "*.dll"))
+        {
+            yield return Assembly.LoadFrom(file);
         }
     }
 }

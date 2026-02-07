@@ -2,16 +2,15 @@
 // Copyright (c) Larionov Artem. All rights reserved.
 // </copyright>
 
+namespace Attributes;
+
 using System;
 
-namespace Attributes
+/// <summary>
+/// Marks a method that should be executed once
+/// before any tests in the class are run.
+/// </summary>
+[AttributeUsage(AttributeTargets.Method, Inherited = false)]
+public sealed class BeforeClassAttribute : Attribute
 {
-    /// <summary>
-    /// Marks a method that should be executed once
-    /// before any tests in the class are run.
-    /// </summary>
-    [AttributeUsage(AttributeTargets.Method, Inherited = false)]
-    public sealed class BeforeClassAttribute : Attribute
-    {
-    }
 }

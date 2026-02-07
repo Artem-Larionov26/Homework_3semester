@@ -2,15 +2,15 @@
 // Copyright (c) Larionov Artem. All rights reserved.
 // </copyright>
 
-namespace Core.Execution
+namespace Core.Execution;
+
+/// <summary>
+/// Represents the final execution status of a test.
+/// </summary>
+public enum TestStatus
 {
-    /// <summary>
-    /// Represents the final execution status of a test.
-    /// </summary>
-    public enum TestStatus
-    {
-        Passed,
-        Failed,
-        Ignored
-    }
+    Passed,
+    Failed,
+    Errored,
+    Ignored
 }

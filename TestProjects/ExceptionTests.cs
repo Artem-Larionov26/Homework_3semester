@@ -2,31 +2,30 @@
 // Copyright (c) Larionov Artem. All rights reserved.
 // </copyright>
 
+namespace TestProjects;
+
 using System;
 using Attributes;
 
-namespace TestProjects
+/// <summary>
+/// Tests expected exception handling.
+/// </summary>
+public class ExceptionTests
 {
-    /// <summary>
-    /// Tests expected exception handling.
-    /// </summary>
-    public class ExceptionTests
+    [TestAttribute(Expected = typeof(InvalidOperationException))]
+    public void ExpectedExceptionIsHandledCorrectly()
     {
-        [Test(Expected = typeof(InvalidOperationException))]
-        public void ExpectedExceptionIsHandledCorrectly()
-        {
-            throw new InvalidOperationException();
-        }
+        throw new InvalidOperationException();
+    }
 
-        [Test(Expected = typeof(InvalidOperationException))]
-        public void UnexpectedExceptionFailsTest()
-        {
-            throw new ArgumentException();
-        }
+    [TestAttribute(Expected = typeof(InvalidOperationException))]
+    public void UnexpectedExceptionFailsTest()
+    {
+        throw new ArgumentException();
+    }
 
-        [Test]
-        public void MissingExpectedExceptionFailsTest()
-        {
-        }
+    [TestAttribute]
+    public void MissingExpectedExceptionFailsTest()
+    {
     }
 }

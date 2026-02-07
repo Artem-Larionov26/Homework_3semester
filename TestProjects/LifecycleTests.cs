@@ -2,59 +2,58 @@
 // Copyright (c) Larionov Artem. All rights reserved.
 // </copyright>
 
+namespace TestProjects;
+
 using System;
 using Attributes;
 
-namespace TestProjects
+/// <summary>
+/// Tests correct execution order of lifecycle methods.
+/// </summary>
+public class LifecycleTests
 {
-    /// <summary>
-    /// Tests correct execution order of lifecycle methods.
-    /// </summary>
-    public class LifecycleTests
+    private static int _beforeClassCounter;
+    private int _value;
+
+    [BeforeClass]
+    private static void BeforeAll()
     {
-        private static int _beforeClassCounter;
-        private int _value;
+        _beforeClassCounter++;
+    }
 
-        [BeforeClass]
-        private static void BeforeAll()
+    [AfterClass]
+    private static void AfterAll()
+    {
+        Console.WriteLine($"BeforeClass executed {_beforeClassCounter} time(s)");
+    }
+
+    [Before]
+    private void SetUp()
+    {
+        this._value = 42;
+    }
+
+    [After]
+    private void TearDown()
+    {
+        this._value = 0;
+    }
+
+    [TestAttribute]
+    public void ValueIsInitializedBeforeEachTest()
+    {
+        if (_value != 42)
         {
-            _beforeClassCounter++;
+            throw new Exception("Before method was not executed");
         }
+    }
 
-        [AfterClass]
-        private static void AfterAll()
+    [TestAttribute]
+    public void BeforeClassExecutedOnce()
+    {
+        if (_beforeClassCounter != 1)
         {
-            Console.WriteLine($"BeforeClass executed {_beforeClassCounter} time(s)");
-        }
-
-        [Before]
-        private void SetUp()
-        {
-            _value = 42;
-        }
-
-        [After]
-        private void TearDown()
-        {
-            _value = 0;
-        }
-
-        [Test]
-        public void ValueIsInitializedBeforeEachTest()
-        {
-            if (_value != 42)
-            {
-                throw new Exception("Before method was not executed");
-            }
-        }
-
-        [Test]
-        public void BeforeClassExecutedOnce()
-        {
-            if (_beforeClassCounter != 1)
-            {
-                throw new Exception("BeforeClass should be executed exactly once");
-            }
+            throw new Exception("BeforeClass should be executed exactly once");
         }
     }
 }

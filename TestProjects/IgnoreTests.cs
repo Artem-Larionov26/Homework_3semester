@@ -2,20 +2,19 @@
 // Copyright (c) Larionov Artem. All rights reserved.
 // </copyright>
 
+namespace TestProjects;
+
 using System;
 using Attributes;
 
-namespace TestProjects
+/// <summary>
+/// Tests ignored test handling.
+/// </summary>
+public class IgnoreTests
 {
-    /// <summary>
-    /// Tests ignored test handling.
-    /// </summary>
-    public class IgnoreTests
+    [TestAttribute(Ignore = "Feature under development")]
+    public void IgnoredTestIsNotExecuted()
     {
-        [Test(Ignore = "Feature under development")]
-        public void IgnoredTestIsNotExecuted()
-        {
-            throw new Exception("This test must not be executed");
-        }
+        throw new Exception("This test must not be executed");
     }
 }
