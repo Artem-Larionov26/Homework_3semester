@@ -9,8 +9,23 @@ namespace Core.Execution;
 /// </summary>
 public enum TestStatus
 {
+    /// <summary>
+    /// Test finished successfully without errors.
+    /// </summary>
     Passed,
+
+    /// <summary>
+    /// Test finished, but its assertions failed.
+    /// </summary>
     Failed,
+
+    /// <summary>
+    /// Test execution resulted in an unexpected error.
+    /// </summary>
     Errored,
-    Ignored
+
+    /// <summary>
+    /// Test was skipped and not executed.
+    /// </summary>
+    Ignored,
 }

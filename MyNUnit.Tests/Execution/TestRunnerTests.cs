@@ -4,6 +4,7 @@
 
 namespace MyNUnit.Tests.Execution;
 
+using System;
 using System.Linq;
 using Attributes;
 using Core.Discovery;
@@ -30,16 +31,25 @@ public class TestRunnerTests
         [TestAttribute]
         public void FailingTest()
         {
-            throw new System.Exception("Failure");
+            throw new Exception("Failure");
         }
     }
 
     private class ExpectedExceptionTestClass
     {
-        [TestAttribute(Expected = typeof(System.InvalidOperationException))]
+        [TestAttribute(Expected = typeof(InvalidOperationException))]
         public void ExpectedExceptionTest()
         {
-            throw new System.InvalidOperationException();
+            throw new InvalidOperationException();
+        }
+    }
+
+    private class WrongExpectedExceptionTestClass
+    {
+        [TestAttribute(Expected = typeof(InvalidOperationException))]
+        public void WrongExceptionThrown()
+        {
+            throw new ArgumentException("Wrong exception");
         }
     }
 
@@ -48,64 +58,96 @@ public class TestRunnerTests
         [TestAttribute(Ignore = "Ignored for testing")]
         public void IgnoredTest()
         {
-            throw new System.Exception("Should not be executed");
+            throw new Exception("Should not be executed");
+        }
+    }
+
+    private class BeforeThrowsTestClass
+    {
+        [Before]
+        public void Before()
+        {
+            throw new Exception("Before failed");
+        }
+
+        [TestAttribute]
+        public void TestMethod()
+        {
+        }
+    }
+
+    private class AfterThrowsTestClass
+    {
+        [After]
+        public void After()
+        {
+            throw new Exception("After failed");
+        }
+
+        [TestAttribute]
+        public void TestMethod()
+        {
         }
     }
 
     [Test]
     public void Run_PassingTest_ReturnsPassed()
     {
-        var testClass = CreateTestClassInfo(typeof(PassingTestClass));
-        var runner = new TestRunner();
-
-        var result = runner.Run(new[] { testClass }).Single();
-
+        var result = RunSingleTest(typeof(PassingTestClass));
         Assert.That(result.Status, Is.EqualTo(TestStatus.Passed));
     }
 
     [Test]
     public void Run_FailingTest_ReturnsFailed()
     {
-        var testClass = CreateTestClassInfo(typeof(FailingTestClass));
-        var runner = new TestRunner();
-
-        var result = runner.Run(new[] { testClass }).Single();
-
+        var result = RunSingleTest(typeof(FailingTestClass));
         Assert.That(result.Status, Is.EqualTo(TestStatus.Failed));
     }
 
     [Test]
     public void Run_ExpectedException_ReturnsPassed()
     {
-        var testClass = CreateTestClassInfo(typeof(ExpectedExceptionTestClass));
-        var runner = new TestRunner();
-
-        var result = runner.Run(new[] { testClass }).Single();
-
+        var result = RunSingleTest(typeof(ExpectedExceptionTestClass));
         Assert.That(result.Status, Is.EqualTo(TestStatus.Passed));
+    }
+
+    [Test]
+    public void Run_WrongExpectedException_ReturnsFailed()
+    {
+        var result = RunSingleTest(typeof(WrongExpectedExceptionTestClass));
+        Assert.That(result.Status, Is.EqualTo(TestStatus.Failed));
     }
 
     [Test]
     public void Run_IgnoredTest_ReturnsIgnored()
     {
-        var testClass = CreateTestClassInfo(typeof(IgnoredTestClass));
-        var runner = new TestRunner();
-
-        var result = runner.Run(new[] { testClass }).Single();
-
+        var result = RunSingleTest(typeof(IgnoredTestClass));
         Assert.That(result.Status, Is.EqualTo(TestStatus.Ignored));
     }
 
-    /// <summary>
-    /// Helper method that discovers TestClassInfo for a given type
-    /// using the real TestDiscoverer.
-    /// </summary>
-    private static TestClassInfo CreateTestClassInfo(System.Type type)
+    [Test]
+    public void Run_BeforeThrows_ReturnsErrored()
+    {
+        var result = RunSingleTest(typeof(BeforeThrowsTestClass));
+        Assert.That(result.Status, Is.EqualTo(TestStatus.Errored));
+    }
+
+    [Test]
+    public void Run_AfterThrows_ReturnsErrored()
+    {
+        var result = RunSingleTest(typeof(AfterThrowsTestClass));
+        Assert.That(result.Status, Is.EqualTo(TestStatus.Errored));
+    }
+
+    private static TestResult RunSingleTest(Type testClassType)
     {
         var discoverer = new TestDiscoverer();
+        var runner = new TestRunner();
 
-        return discoverer
-            .Discover(System.IO.Path.GetDirectoryName(type.Assembly.Location)!)
-            .Single(tc => tc.ClassType == type);
+        var testClass = discoverer
+            .Discover(System.IO.Path.GetDirectoryName(testClassType.Assembly.Location)!)
+            .Single(tc => tc.ClassType == testClassType);
+
+        return runner.Run(new[] { testClass }).Single();
     }
 }

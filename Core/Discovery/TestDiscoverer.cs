@@ -16,9 +16,68 @@ using Core.Models;
 /// </summary>
 public class TestDiscoverer
 {
-#pragma warning disable SA1600 // Elements should be documented
+    /// <summary>
+    /// Safely checks whether a method has a specific attribute.
+    /// </summary>
+    /// <typeparam name="T">Type of attribute to check.</typeparam>
+    /// <param name="method">Method to inspect.</param>
+    /// <returns>True if the attribute is present; otherwise, false.</returns>
+    private static bool HasAttribute<T>(MethodInfo method)
+        where T : Attribute
+    {
+        try
+        {
+            return method.GetCustomAttribute<T>() != null;
+        }
+        catch (TypeLoadException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Safely retrieves an attribute instance if present.
+    /// </summary>
+    /// <typeparam name="T">Type of attribute to retrieve.</typeparam>
+    /// <param name="method">Method to inspect.</param>
+    /// <param name="attribute">Retrieved attribute instance.</param>
+    /// <returns>True if the attribute is present; otherwise, false.</returns>
+    private static bool HasAttribute<T>(MethodInfo method, out T attribute)
+        where T : Attribute
+    {
+        try
+        {
+            attribute = method.GetCustomAttribute<T>()!;
+            return attribute != null;
+        }
+        catch (TypeLoadException)
+        {
+            attribute = null!;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Loads all assemblies from the specified directory.
+    /// </summary>
+    /// <param name="path">Path to the directory containing assemblies.</param>
+    /// <returns>Enumerable of loaded assemblies.</returns>
+    private static IEnumerable<Assembly> LoadAssemblies(string path)
+    {
+        foreach (var file in System.IO.Directory.EnumerateFiles(path, "*.dll"))
+        {
+            yield return Assembly.LoadFrom(file);
+        }
+    }
+
+    /// <summary>
+    /// Discovers test classes and test methods in assemblies using reflection.
+    /// </summary>
+    /// <param name="path">Path to the directory containing test assemblies.</param>
+    /// <returns>List of discovered test classes.</returns>
+#pragma warning disable SA1202 // Elements should be ordered by access
     public IReadOnlyList<TestClassInfo> Discover(string path)
-#pragma warning restore SA1600 // Elements should be documented
+#pragma warning restore SA1202 // Elements should be ordered by access
     {
         var result = new List<TestClassInfo>();
 
@@ -103,47 +162,5 @@ public class TestDiscoverer
         }
 
         return testClass.Tests.Any() ? testClass : null;
-    }
-
-    /// <summary>
-    /// Safely checks whether a method has a specific attribute.
-    /// </summary>
-    private static bool HasAttribute<T>(MethodInfo method)
-        where T : Attribute
-    {
-        try
-        {
-            return method.GetCustomAttribute<T>() != null;
-        }
-        catch (TypeLoadException)
-        {
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Safely retrieves an attribute instance if present.
-    /// </summary>
-    private static bool HasAttribute<T>(MethodInfo method, out T attribute)
-        where T : Attribute
-    {
-        try
-        {
-            attribute = method.GetCustomAttribute<T>()!;
-            return attribute != null;
-        }
-        catch (TypeLoadException)
-        {
-            attribute = null!;
-            return false;
-        }
-    }
-
-    private static IEnumerable<Assembly> LoadAssemblies(string path)
-    {
-        foreach (var file in System.IO.Directory.EnumerateFiles(path, "*.dll"))
-        {
-            yield return Assembly.LoadFrom(file);
-        }
     }
 }

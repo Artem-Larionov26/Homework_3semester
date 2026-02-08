@@ -23,6 +23,8 @@ public class TestRunner
     /// Executes all tests in the given test classes.
     /// Test classes are executed in parallel.
     /// </summary>
+    /// <param name="testClasses">Discovered test classes to execute.</param>
+    /// <returns>List of test execution results.</returns>
     public IReadOnlyList<TestResult> Run(IEnumerable<TestClassInfo> testClasses)
     {
         var tasks = testClasses.Select(tc =>
@@ -32,6 +34,33 @@ public class TestRunner
             .Result
             .SelectMany(r => r)
             .ToList();
+    }
+
+    /// <summary>
+    /// Invokes instance lifecycle methods (Before / After).
+    /// </summary>
+    /// <param name="instance">Test class instance.</param>
+    /// <param name="methods">Lifecycle methods to invoke.</param>
+    private static void InvokeInstanceMethods(
+        object instance,
+        IEnumerable<MethodInfo> methods)
+    {
+        foreach (var method in methods)
+        {
+            method.Invoke(instance, null);
+        }
+    }
+
+    /// <summary>
+    /// Invokes static lifecycle methods (BeforeClass / AfterClass).
+    /// </summary>
+    /// <param name="methods">Lifecycle methods to invoke.</param>
+    private static void InvokeStaticMethods(IEnumerable<MethodInfo> methods)
+    {
+        foreach (var method in methods)
+        {
+            method.Invoke(null, null);
+        }
     }
 
     /// <summary>
@@ -88,8 +117,8 @@ public class TestRunner
     /// Executes a single test method with full lifecycle handling.
     /// </summary>
     private TestResult RunSingleTest(
-    TestClassInfo testClass,
-    TestMethodInfo test)
+        TestClassInfo testClass,
+        TestMethodInfo test)
     {
         var testName =
             $"{testClass.ClassType.FullName}.{test.Method.Name}";
@@ -206,29 +235,5 @@ public class TestRunner
         }
 
         return result;
-    }
-
-    /// <summary>
-    /// Invokes instance lifecycle methods (Before / After).
-    /// </summary>
-    private static void InvokeInstanceMethods(
-        object instance,
-        IEnumerable<MethodInfo> methods)
-    {
-        foreach (var method in methods)
-        {
-            method.Invoke(instance, null);
-        }
-    }
-
-    /// <summary>
-    /// Invokes static lifecycle methods (BeforeClass / AfterClass).
-    /// </summary>
-    private static void InvokeStaticMethods(IEnumerable<MethodInfo> methods)
-    {
-        foreach (var method in methods)
-        {
-            method.Invoke(null, null);
-        }
     }
 }
