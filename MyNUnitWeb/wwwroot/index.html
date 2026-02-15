@@ -1,0 +1,55 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>MyNUnit Web</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+        }
+
+        button {
+            margin-top: 10px;
+        }
+
+        .passed {
+            color: green;
+        }
+
+        .failed {
+            color: red;
+        }
+
+        .ignored {
+            color: gray;
+        }
+
+        .history-item {
+            cursor: pointer;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>MyNUnit Web</h1>
+
+    <h2>Upload test assembly</h2>
+    <input type="file" id="fileInput" />
+    <br />
+    <button id="uploadButton">Upload</button>
+
+    <h2>Run tests</h2>
+    <button id="runButton">Run</button>
+
+    <h2>History</h2>
+    <button id="historyButton">Load history</button>
+    <div id="history"></div>
+
+    <h2>Results</h2>
+    <div id="results"></div>
+
+    <script src="/js/site.js"></script>
+</body>
+</html>
