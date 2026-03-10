@@ -37,11 +37,12 @@ public class SingleThreadLazy<T> : ILazy<T>
     {
         if (!isValueCreated)
         {
-            value = _supplier();
+            var localSupplier = _supplier!;
+            value = localSupplier();
             isValueCreated = true;
             _supplier = null;
         }
 
-        return value;
+        return value!;
     }
 }

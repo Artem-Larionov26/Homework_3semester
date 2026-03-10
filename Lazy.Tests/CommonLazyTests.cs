@@ -40,7 +40,7 @@ public abstract class CommonLazyTests
     {
         int callCount = 0;
 
-        Func<string> supplier = () =>
+        Func<string?> supplier = () =>
         {
             callCount++;
             return null;

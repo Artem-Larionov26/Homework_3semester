@@ -15,7 +15,7 @@ public class SingleThreadLazyTests
     {
         Assert.Throws<ArgumentNullException>(() =>
         {
-            var lazy = new SingleThreadLazy<int>(null);
+            var lazy = new SingleThreadLazy<int>(null!);
         });
     }
 }

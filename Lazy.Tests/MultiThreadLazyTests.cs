@@ -45,7 +45,7 @@ public class MultiThreadLazyTests
     {
         Assert.Throws<ArgumentNullException>(() =>
         {
-            var lazy = new MultiThreadLazy<int>(null);
+            var lazy = new MultiThreadLazy<int>(null!);
         });
     }
 }

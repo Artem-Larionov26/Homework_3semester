@@ -8,7 +8,7 @@ namespace LazyImplementation;
 /// Represents a lazily evaluated value of type T.
 /// </summary>
 /// <typeparam name="T">Type of the value.</typeparam>
-public interface ILazy<T>
+public interface ILazy<out T>
 {
     /// <summary>
     /// Returns the lazily calculated value.

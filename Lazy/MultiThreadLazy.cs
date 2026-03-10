@@ -2,8 +2,6 @@
 // Copyright (c) Larionov Artem. All rights reserved.
 // </copyright>
 
-using System;
-
 namespace LazyImplementation;
 
 /// <summary>
@@ -16,17 +14,15 @@ public class MultiThreadLazy<T> : ILazy<T>
     private Func<T>? _supplier;
     private T? value;
     private volatile bool isValueCreated;
-    private readonly object locker = new object();
+    private readonly object locker = new();
 
     /// <summary>
     /// Initializes a new instance of MultiThreadLazy with the given supplier.
     /// </summary>
     /// <param name="supplier">Function that will provide the value.</param>
     /// <exception cref="ArgumentNullException">Thrown if supplier is null.</exception>
-    public MultiThreadLazy(Func<T> supplier)
-    {
-        _supplier = supplier ?? throw new ArgumentNullException(nameof(supplier));
-    }
+    public MultiThreadLazy(Func<T> supplier) 
+        => _supplier = supplier ?? throw new ArgumentNullException(nameof(supplier));
 
     /// <summary>
     /// Returns the lazily evaluated value in a thread-safe way.
@@ -37,19 +33,20 @@ public class MultiThreadLazy<T> : ILazy<T>
     {
         if (isValueCreated)
         {
-            return value;
+            return value!;
         }
 
         lock (locker)
         {
             if (!isValueCreated)
             {
-                value = _supplier();
+                var localSupplier = _supplier!;
+                value = localSupplier();
                 isValueCreated = true;
                 _supplier = null;
             }
         }
 
-        return value;
+        return value!;
     }
 }
