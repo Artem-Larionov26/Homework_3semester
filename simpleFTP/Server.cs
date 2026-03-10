@@ -29,19 +29,24 @@ public sealed class Server(IPAddress address, int port) : IDisposable
         using var linkedCts =
             CancellationTokenSource.CreateLinkedTokenSource(cts.Token, cancellationToken);
 
+        var clientTasks = new List<Task>();
+
         try
         {
             while (!linkedCts.Token.IsCancellationRequested)
             {
                 TcpClient client = await listener.AcceptTcpClientAsync(linkedCts.Token);
 
-                _ = HandleClientAsync(client, linkedCts.Token);
+                var task = HandleClientAsync(client, linkedCts.Token);
+                clientTasks.Add(task);
             }
         }
         catch (OperationCanceledException)
         {
             // Normal shutdown
         }
+
+        await Task.WhenAll(clientTasks);
     }
 
     private static async Task HandleClientAsync(
