@@ -89,10 +89,12 @@ public class TestRunner
             return results;
         }
 
-        foreach (var test in testClass.Tests)
-        {
-            results.Add(this.RunSingleTest(testClass, test));
-        }
+        var tasks = testClass.Tests
+            .Select(test => Task.Run(() => this.RunSingleTest(testClass, test)));
+
+        var testResults = Task.WhenAll(tasks).Result;
+
+        results.AddRange(testResults);
 
         try
         {
