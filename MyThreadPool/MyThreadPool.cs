@@ -134,7 +134,7 @@ public sealed class MyThreadPool : IDisposable
 
         private readonly ManualResetEventSlim completionEvent = new(false);
         private readonly List<Action> continuations = new();
-        private readonly Lock sync = new();
+        private readonly object sync = new();
 
         public MyTask(MyThreadPool pool, Func<TResult> function)
         {
@@ -184,7 +184,7 @@ public sealed class MyThreadPool : IDisposable
             {
                 result = value;
                 isCompleted = true;
-                toRun = new List<Action>(continuations);
+                toRun = [.. continuations];
                 continuations.Clear();
             }
 
